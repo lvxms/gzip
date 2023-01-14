@@ -35,6 +35,7 @@ func (g *gzipWriter) WriteString(s string) (int, error) {
 	//mdw 增加最小压缩限制
 	g.ContentLength = len(s)
 	if g.ContentLength < g.MinContentLength {
+		g.Header().Del("Content-Length")
 		g.Header().Del("Content-Encoding")
 		g.Header().Del("Vary")
 		return g.ResponseWriter.Write([]byte(s))
@@ -48,6 +49,7 @@ func (g *gzipWriter) Write(data []byte) (int, error) {
 	//mdw 增加最小压缩限制
 	g.ContentLength = len(data)
 	if g.ContentLength < g.MinContentLength {
+		g.Header().Del("Content-Length")
 		g.Header().Del("Content-Encoding")
 		g.Header().Del("Vary")
 		return g.ResponseWriter.Write(data)
