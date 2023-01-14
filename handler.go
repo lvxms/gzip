@@ -55,10 +55,25 @@ func (g *gzipHandler) Handle(c *gin.Context) {
 
 	c.Header("Content-Encoding", "gzip")
 	c.Header("Vary", "Accept-Encoding")
-	c.Writer = &gzipWriter{c.Writer, gz, g.MinContentLength, 0} //mdw 增加最小压缩限制
+	c.Writer = &gzipWriter{c.Writer, gz, g.MinContentLength, 0, false} //mdw 增加最小压缩限制
 	defer func() {
+		var (
+			size   int
+			IsGzip bool
+		)
+
+		writer := (c.Writer).(*gzipWriter)
+
+		if size, IsGzip = (writer.IsCompress()); !IsGzip {
+			c.Writer = (c.Writer).(*gzipWriter).ResponseWriter
+			writer.writer = nil
+			c.Header("Content-Length", fmt.Sprint(size))
+			return
+		}
+
 		gz.Close()
-		c.Header("Content-Length", fmt.Sprint(c.Writer.Size()))
+		//c.Header("Content-Length", fmt.Sprint(c.Writer.Size()))
+		c.Header("Content-Length", fmt.Sprint(size))
 	}()
 	c.Next()
 }

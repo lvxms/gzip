@@ -2,7 +2,8 @@ package gzip
 
 import (
 	"compress/gzip"
-	"fmt"
+	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,18 +30,21 @@ type gzipWriter struct {
 	writer           *gzip.Writer
 	MinContentLength int //mdw 增加最小压缩限制
 	ContentLength    int
+	IsGzip           bool
 }
 
 func (g *gzipWriter) WriteString(s string) (int, error) {
 	//mdw 增加最小压缩限制
 	g.ContentLength = len(s)
-	if g.ContentLength < g.MinContentLength {
+	if strings.ToLower(g.Header().Get("Transfer-Encoding")) == "chunked" || g.ContentLength < g.MinContentLength {
+		g.IsGzip = false
 		g.Header().Del("Content-Length")
 		g.Header().Del("Content-Encoding")
 		g.Header().Del("Vary")
 		return g.ResponseWriter.Write([]byte(s))
 	}
 
+	g.IsGzip = true
 	g.Header().Del("Content-Length")
 	return g.writer.Write([]byte(s))
 }
@@ -48,13 +52,15 @@ func (g *gzipWriter) WriteString(s string) (int, error) {
 func (g *gzipWriter) Write(data []byte) (int, error) {
 	//mdw 增加最小压缩限制
 	g.ContentLength = len(data)
-	if g.ContentLength < g.MinContentLength {
+	if strings.ToLower(g.Header().Get("Transfer-Encoding")) == "chunked" || g.ContentLength < g.MinContentLength {
+		g.IsGzip = false
 		g.Header().Del("Content-Length")
 		g.Header().Del("Content-Encoding")
 		g.Header().Del("Vary")
 		return g.ResponseWriter.Write(data)
 	}
 
+	g.IsGzip = true
 	g.Header().Del("Content-Length")
 	return g.writer.Write(data)
 }
@@ -62,11 +68,28 @@ func (g *gzipWriter) Write(data []byte) (int, error) {
 //mdw 增加最小压缩限制
 func (g *gzipWriter) Size() int {
 	if g.ContentLength < g.MinContentLength {
-		g.Header().Set("Content-Length", fmt.Sprint(g.ContentLength))
 		return g.ContentLength
 	}
 
 	return g.ResponseWriter.Size()
+}
+
+//mdw add
+func (g *gzipWriter) IsCompress() (int, bool) {
+	var size int
+
+	if g.ContentLength < g.MinContentLength {
+		size = g.ContentLength
+	}
+
+	size = g.ResponseWriter.Size()
+
+	return size, g.IsGzip
+}
+
+//mdw add
+func (g *gzipWriter) Header() http.Header {
+	return g.ResponseWriter.Header()
 }
 
 // Fix: https://github.com/mholt/caddy/issues/38
