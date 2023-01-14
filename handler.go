@@ -14,12 +14,15 @@ import (
 
 type gzipHandler struct {
 	*Options
-	gzPool sync.Pool
+	gzPool           sync.Pool
+	MinContentLength int //mdw 增加最小压缩限制
 }
 
-func newGzipHandler(level int, options ...Option) *gzipHandler {
+//mdw 增加最小压缩限制
+func newGzipHandler(level int, minContentLength int, options ...Option) *gzipHandler {
 	handler := &gzipHandler{
-		Options: DefaultOptions,
+		Options:          DefaultOptions,
+		MinContentLength: minContentLength, //mdw 最小压缩
 		gzPool: sync.Pool{
 			New: func() interface{} {
 				gz, err := gzip.NewWriterLevel(ioutil.Discard, level)
@@ -52,7 +55,7 @@ func (g *gzipHandler) Handle(c *gin.Context) {
 
 	c.Header("Content-Encoding", "gzip")
 	c.Header("Vary", "Accept-Encoding")
-	c.Writer = &gzipWriter{c.Writer, gz}
+	c.Writer = &gzipWriter{c.Writer, gz, g.MinContentLength, 0} //mdw 增加最小压缩限制
 	defer func() {
 		gz.Close()
 		c.Header("Content-Length", fmt.Sprint(c.Writer.Size()))
